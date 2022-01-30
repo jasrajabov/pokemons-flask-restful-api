@@ -20,5 +20,3 @@ class Pokemon(db.Model):
     pokemontype = Column(String)
     power = Column(Float)
     hp = Column(Float)
-
-
