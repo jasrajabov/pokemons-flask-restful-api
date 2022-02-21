@@ -1,11 +1,13 @@
 from assertpy import assert_that
 from models import db, User, Pokemon
 import json
+import time
 
 
 class TestEndpoints:
 
     def test_home_page(self, run_test_serv, ut):
+        time.sleep(10)
         response = ut.get()
         response_json = response.json()
         assert_that(response.status_code).is_equal_to(200)
@@ -70,6 +72,8 @@ class TestEndpoints:
         assert_that(response_json['power']).is_equal_to(pk_data['power'])
         assert_that(response_json['hp']).is_equal_to(pk_data['hp'])
         ut.cleanup_db_by_data(db, Pokemon, pk_data)
+
+
 
 
 

@@ -1,9 +1,12 @@
-from flask import Flask, jsonify, request
-from serializer import ma, pokemons_schema, pokemon_schema, user_schema, users_schema
-from flask_jwt_extended import JWTManager,jwt_required, create_access_token
 import os
-from models import db, User, Pokemon
-import json
+from flask import Flask
+from serializer import ma
+from flask_jwt_extended import JWTManager
+from flask_restful import Api
+from resources.pokemons import Pokemon, Pokemons
+from resources.pokemon_master import PokemonMaster, PokemonsMasters, PokemonMasterById, PokemonMasterRegister, \
+                            PokemonMasterLogin
+
 
 app = Flask(__name__)
 basdir = os.path.abspath(os.path.dirname(__file__))
@@ -11,197 +14,31 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basdir, 'fla
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = '_appsecretkey_'
 app.debug = True
-db.init_app(app)
 ma.init_app(app)
+
 jwt = JWTManager(app)
+api = Api(app)
 
-
-@app.cli.command(name='create_db')
-def create_db():
+@app.before_first_request
+def create_tables():
     db.create_all()
-    print('Database created!')
 
 
-@app.cli.command('drop_db')
-def drop_db():
-    db.drop_all()
-    print('Database dropped!')
+api.add_resource(Pokemons, '/pokemons')
+api.add_resource(Pokemon, '/pokemon/<string:master_name>/<string:name>')
 
+api.add_resource(PokemonMaster, '/master/<string:master_name>')
+api.add_resource(PokemonsMasters, '/masters')
 
-@app.cli.command('seed_db')
-def seed_db():
-    ash = User(
-        pokemon_master='Ash',
-        team='Team Ash'
-    )
+api.add_resource(PokemonMasterById, '/master/<int:_id>')
+api.add_resource(PokemonMasterRegister, '/master/register')
 
-    pikachu = Pokemon(
-        pokemonname = 'Pikachu',
-        pokemontype = 'Electric',
-        power = 100.00,
-        hp = 500.00
-    )
+api.add_resource(PokemonMasterLogin, '/login')
 
-    db.session.add(ash)
-    db.session.add(pikachu)
-
-    db.session.commit()
-    print('Database seeded!')
-
-
-@app.route('/pokemons', methods=['GET'])
-def get_all_pokemons():
-    """
-    Lists all pokemons!
-    :return:
-    """
-    pokemons = Pokemon.query.all()
-    result = pokemons_schema.dump(pokemons)
-    return jsonify(result), 200
-
-
-#DELETE ME
-@app.route('/')
-def hellow():
-    return jsonify(message='Pokemon API Homepage!')
-
-@app.route('/register', methods=['POST'])
-def register_master():
-    """
-    Handles registration of pokemon masters
-    :method: POST
-    :return:
-    """
-    email = request.form['email']
-    record = User.query.filter_by(email=email).first()
-    if record:
-        return jsonify(message='Email exists! Try with different email!'), 409
-    else:
-        pokemon_master = User(
-            pokemon_master=request.form['pokemon_master'],
-            email=email,
-            team=request.form['team'],
-            password=request.form['password']
-
-        )
-        db.session.add(pokemon_master)
-        db.session.commit()
-        return jsonify(message='Pokemon master created successfully!'), 201
-
-@app.route('/delete_pokemon_master', methods=['POST'])
-@jwt_required()
-def delete_pokemon_master():
-    content = json.loads(request.json)
-    email = content['email']
-    pokemon_master = User.query.filter_by(email=email).first()
-    if pokemon_master:
-        db.session.delete(pokemon_master)
-        db.session.commit()
-        return jsonify(message=f'{pokemon_master.pokemon_master} has been deleted successfully!'), 202
-    else:
-        return jsonify(message='No such pokemon master!')
-
-
-
-@app.route('/add_pokemon', methods=['POST'])
-@jwt_required()
-def add_pokemon():
-    if request.is_json:
-        content = json.loads(request.json)
-        pokemonname = content['pokemonname']
-        hp = content['hp']
-        power = content['power']
-        pokemontype = content['pokemontype']
-        pokemon = Pokemon.query.filter_by(pokemonname=pokemonname, hp=hp, power=power).first()
-        if not pokemon:
-            new_pokemon = Pokemon(
-                pokemonname=pokemonname,
-                hp=hp,
-                power=power,
-                pokemontype=pokemontype
-            )
-            db.session.add(new_pokemon)
-            db.session.commit()
-            return jsonify(message=f'{pokemonname} is successfully added!'), 200
-        else:
-            return jsonify(message='Such pokemon exists!'), 404
-
-@app.route('/login', methods=['POST'])
-def login():
-    if request.is_json:
-        content = json.loads(request.json)
-        email = content['email']
-        password = content['password']
-    else:
-        email = request.form['email']
-        password = request.form['password']
-    pokemon_master = User.query.filter_by(email=email, password=password).first()
-    if pokemon_master:
-        return jsonify(message='Successfully logged in!', access_token=create_access_token(identity=email)), 201
-    else:
-        return jsonify(message='Incorrect password or email!'), 409
-
-@app.route('/retrieve_password/<string:email>', methods=['GET'])
-def retrieve_password(email: str):
-    res = User.query.filter_by(email=email).first()
-    if res:
-        msg = Message(
-            f"Your password is {res.password}",
-            sender='admin@pokemonapi.com',
-            recipients=[email]
-        )
-        mail.send(msg)
-        return jsonify(message=f'Password is send to {res.email}'), 201
-    else:
-        return jsonify(message='No email was found!'), 400
-
-
-@app.route('/pokemons/<int:id>', methods=['GET'])
-def get_single_pokemon(id:int):
-    pokemon =  Pokemon.query.filter_by(pokemon_id=id).first()
-    if pokemon:
-        data = pokemon_schema.dump(pokemon)
-        return jsonify(data), 200
-    else:
-        return jsonify(message='No pokemon was found with that id!'), 404
-
-
-@app.route('/update_pokemon', methods=['PUT'])
-@jwt_required()
-def update_pokemon():
-    data = request.json
-    pokemon_id = data['pokemon_id']
-    pokemon = Pokemon.query.filter_by(pokemon_id=pokemon_id).first()
-    if pokemon:
-        pokemon.pokemonname = data['pokemonname']
-        pokemon.pokemontype = data['pokemontype']
-        pokemon.power = data['power']
-        pokemon.hp = data['hp']
-        db.session.commit()
-        return jsonify(message=f'{pokemon.pokemonname} has been updated successfully!'), 200
-    else:
-        return jsonify(message='No pokemon was found!'), 404
-
-
-@app.route('/delete_pokemon/<int:id>', methods=['DELETE'])
-@jwt_required()
-def delete_pokemon(id):
-    pokemon = Pokemon.query.filter_by(pokemon_id=id).first()
-    if pokemon:
-        db.session.delete(pokemon)
-        db.session.commit()
-        return jsonify(message='Pokemon has been deleted!'), 201
-    else:
-        return jsonify(message='No pokemon was found!'), 404
-
-@app.route('/best_pokemons', methods=['GET'])
-def get_best_pokemons():
-    pokemons = Pokemon.query.order_by(Pokemon.power.desc()).limit(3)
-    if pokemons:
-        data = pokemons_schema.dump(pokemons)
-        return jsonify(data)
 
 
 if __name__ == '__main__':
+    from db import db
+    db.init_app(app)
     port = 5000
     app.run(host="0.0.0.0", port=port)

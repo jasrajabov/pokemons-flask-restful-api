@@ -20,7 +20,7 @@ def pk_master_data():
 @pytest.fixture
 def pk_data():
     data = {
-            'pokemonname': 'Onyxx',
+            'pokemonname': 'Bulbasaur',
             'pokemontype': 'Rock',
             'power': random.randint(0, 100),
             'hp': random.randint(0, 100)
@@ -51,6 +51,7 @@ def _app():
 
 @pytest.fixture(scope="session")
 def run_test_serv(_app):
+
     sp = subprocess.Popen("python ../app.py", shell=True, stdout=subprocess.PIPE, preexec_fn=os.setsid)
     time.sleep(2)
     yield

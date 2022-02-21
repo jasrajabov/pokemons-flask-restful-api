@@ -10,11 +10,14 @@ services:
   - ./:/app
   command: >
     sh -c "python app.py"
-    sh -c "pytest"
+    sh -c "pwd"
+    sh -c "ls"
 
  test:
   build:
    context: .
+  depends_on:
+   - app
   volumes:
    - ./tests/:/app/tests
   command: >
