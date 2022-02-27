@@ -1,4 +1,4 @@
-from models.PokemonMasterModel import PokemonMasterModel
+from models.pokemon_master import PokemonMasterModel
 from flask_restful import Resource, reqparse
 from flask_jwt_extended import create_access_token, jwt_required
 
